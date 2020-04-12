@@ -112,6 +112,11 @@ def get_needs_by_location():
         return f"An Error Occured: {e}"
 
 
+@app.route("/ping", methods=["GET"])
+def ping():
+   return 'pong'
+
+
 port = int(os.environ.get("PORT", 5000))
 if __name__ == "__main__":
     app.run(threaded=True, host="0.0.0.0", port=port, debug=True)
