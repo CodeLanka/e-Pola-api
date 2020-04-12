@@ -52,7 +52,6 @@ def query_from_fb(columns, values):
                 area_query = needs_ref.where(mapping[0], "==", mapping[1])
             else:
                 area_query = area_query.where(mapping[0], "==", mapping[1])
-                print([doc.to_dict() for doc in area_query.stream()])
         elif mapping[0] == columns[2]:
             cat_query = product_ref.where(
                 mapping[0], "in", list(map(str.strip, mapping[1].split(",")))
@@ -62,14 +61,14 @@ def query_from_fb(columns, values):
                 mapping[0], "in", list(map(str.strip, mapping[1].split(",")))
             )
     if area_query:
-        area_data = [doc.to_dict() for doc in area_query.stream()]
+        area_data = {doc.id: doc.to_dict() for doc in area_query.stream()}
         result = area_data
     if cat_query:
         cat_data = {doc.id: doc.to_dict() for doc in cat_query.stream()}
-        if prod_query:
+        cat_list = list(set([l["category"] for l in list(cat_data.values())]))
+        if prod_query and area_query:
             prod_done = True
             prod_data = {doc.id: doc.to_dict() for doc in prod_query.stream()}
-            cat_list = list(set([l["category"] for l in list(cat_data.values())]))
             prod_list = {
                 id: data
                 for id, data in prod_data.items()
@@ -77,22 +76,33 @@ def query_from_fb(columns, values):
             }
             result = list(prod_list.values())
             if area_query:
-                result = [
-                    data
-                    for data in area_data
+                result = {
+                    id: data
+                    for id, data in area_data.items()
                     if data["products_id"] in list(prod_list.keys())
-                ]
+                }
             else:
-                result = list(prod_data.values())
+                result = {}
+        elif not prod_query and area_query:
+            result = {
+                id: data
+                for id, data in area_data.items()
+                if data["category"]
+                in cat_list  # ToDo: There's a bug here: need to fetch the category by querying the product_id in products table.
+            }
         else:
-            result = list(cat_data.values())
+            result = {}
     if prod_query and not prod_done:
         prod_data = {doc.id: doc.to_dict() for doc in prod_query.stream()}
         if area_query:
             prod_list = list(prod_data.keys())
-            result = [data for data in area_data if data["products_id"] in prod_list]
+            result = {
+                id: data
+                for id, data in area_data.items()
+                if data["products_id"] in prod_list
+            }
         else:
-            result = list(prod_data.values())
+            result = {}
 
     return result
 
@@ -115,7 +125,7 @@ def get_needs_by_location():
 
 @app.route("/ping", methods=["GET"])
 def ping():
-   return 'pong'
+    return "pong"
 
 
 port = int(os.environ.get("PORT", 5000))
