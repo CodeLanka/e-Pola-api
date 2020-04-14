@@ -4,6 +4,7 @@ from flask_cors import CORS
 from firebase_admin import auth, credentials, firestore, initialize_app
 import functools
 import requests
+import json
 
 app = Flask(__name__)
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -106,6 +107,19 @@ def query_from_fb(columns, values):
 
     return result
 
+
+
+@app.route("/api/v2/needs", methods=["GET"])
+def get_needs():
+    products = [] if not request.args else request.args['products'].split(",")
+    area = "" if "area" not in request.args else request.args['area']
+    query = db.collection("needs")
+    if( len(products) > 0 ):
+        query =  query.where("products_id", "in", products)
+    if(area != ""):
+       query =  query.where("location.area", "==", area)
+    needs = query.stream()
+    return jsonify([doc.to_dict() for doc in needs]), 200
 
 @app.route("/api/v1/needs", methods=["GET"])
 # @requires_authorization
