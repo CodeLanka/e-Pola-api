@@ -37,37 +37,49 @@ def requires_authorization(f):
     return decorated
 
 
+def filter_from_all(column, filter):
+    return {
+        doc.id: doc.to_dict() for doc in needs_ref.where(column, "in", filter).stream()
+    }
+
+
 def query_from_fb(columns, values):
     mappings = list(zip(columns, values))
     mappings = [t for t in mappings if t[1]]
     result = []
 
-    area_query = None
+    main_query = None
     cat_query = None
     prod_query = None
     prod_done = False
 
     for mapping in mappings:
-        if mapping[0] == columns[0] or mapping[0] == columns[1]:
-            if area_query is None:
-                area_query = needs_ref.where(mapping[0], "==", mapping[1])
+        if (
+            mapping[0] == columns[0]
+            or mapping[0] == columns[1]
+            or mapping[0] == columns[2]
+        ):
+            if main_query is None:
+                main_query = needs_ref.where(mapping[0], "==", mapping[1])
             else:
-                area_query = area_query.where(mapping[0], "==", mapping[1])
-        elif mapping[0] == columns[2]:
-            cat_query = product_ref.where(
-                mapping[0], "in", list(map(str.strip, mapping[1].split(",")))
-            )
+                if len(mapping[1].split(",")) > 1:
+                    main_query = main_query.where(
+                        mapping[0], "in", list(map(str.strip, mapping[1].split(",")))
+                    )
+                else:
+                    main_query = main_query.where(mapping[0], "==", mapping[1])
         elif mapping[0] == columns[3]:
             prod_query = product_ref.where(
                 mapping[0], "in", list(map(str.strip, mapping[1].split(",")))
             )
-    if area_query:
-        area_data = {doc.id: doc.to_dict() for doc in area_query.stream()}
+    # THIS WHOLE LOGIC NEEDS TO BE RE WRITTEN AND SIMPLIFIED WITH THE SIMPLIFIED DB STRUCTURE.
+    if main_query:
+        area_data = {doc.id: doc.to_dict() for doc in main_query.stream()}
         result = area_data
     if cat_query:
         cat_data = {doc.id: doc.to_dict() for doc in cat_query.stream()}
         cat_list = list(set([l["category"] for l in list(cat_data.values())]))
-        if prod_query and area_query:
+        if prod_query and main_query:
             prod_done = True
             prod_data = {doc.id: doc.to_dict() for doc in prod_query.stream()}
             prod_list = {
@@ -76,7 +88,7 @@ def query_from_fb(columns, values):
                 if data["category"] in cat_list
             }
             result = list(prod_list.values())
-            if area_query:
+            if main_query:
                 result = {
                     id: data
                     for id, data in area_data.items()
@@ -84,7 +96,7 @@ def query_from_fb(columns, values):
                 }
             else:
                 result = {}
-        elif not prod_query and area_query:
+        elif not prod_query and main_query:
             result = {
                 id: data
                 for id, data in area_data.items()
@@ -94,16 +106,15 @@ def query_from_fb(columns, values):
         else:
             result = {}
     if prod_query and not prod_done:
-        prod_data = {doc.id: doc.to_dict() for doc in prod_query.stream()}
-        if area_query:
-            prod_list = list(prod_data.keys())
+        if main_query:
+            prod_list = list(map(str.strip, mappings[-1][1].split(",")))
             result = {
                 id: data
                 for id, data in area_data.items()
                 if data["products_id"] in prod_list
             }
         else:
-            result = {}
+            result = filter_from_all(mappings[-1][0], prod_list)
 
     return result
 
@@ -126,12 +137,12 @@ def get_needs():
 def get_needs_by_location():
     try:
         args = ("area", "suburb", "category", "product")
-        fb_doc_cols = ("location.area", "location.suburb", "category", "name")
+        fb_doc_cols = ("location.area", "location.suburb", "category", "products_id")
         values = list(map(request.args.get, args))
         if any(values):
             return jsonify(query_from_fb(fb_doc_cols, values)), 200
         else:
-            all_needs = [doc.to_dict() for doc in needs_ref.stream()]
+            all_needs = {doc.id: doc.to_dict() for doc in needs_ref.stream()}
             return jsonify(all_needs), 200
     except Exception as e:
         return f"An Error Occured: {e}"
