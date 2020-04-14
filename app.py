@@ -117,7 +117,7 @@ def get_needs_by_location():
         if any(values):
             return jsonify(query_from_fb(fb_doc_cols, values)), 200
         else:
-            all_needs = [doc.to_dict() for doc in needs_ref.stream()]
+            all_needs = {doc.id: doc.to_dict() for doc in needs_ref.stream()}
             return jsonify(all_needs), 200
     except Exception as e:
         return f"An Error Occured: {e}"
