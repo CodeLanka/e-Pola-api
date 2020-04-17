@@ -4,7 +4,7 @@ from flask_cors import CORS
 from firebase_admin import auth, credentials, firestore, initialize_app
 import functools
 import requests
-import json
+
 
 app = Flask(__name__)
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -155,7 +155,7 @@ def getLocationFromString():
     parameters = {'input': request.args.get('address'), 'inputtype': 'textquery', 'key': GOOGLE_API_KEY, 'fields': 'geometry'}
     response = requests.get('https://maps.googleapis.com/maps/api/place/findplacefromtext/json', params=parameters)
     if response.status_code == 200:
-        return json.dumps(response.json()), 200, {'Content-Type': 'application/json'}
+        return jsonify(response.json()), 200
 
 
 port = int(os.environ.get("PORT", 5000))
