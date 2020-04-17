@@ -118,6 +118,9 @@ def query_from_fb(columns, values):
 
     return result
 
+def merge_id(id, obj):
+  obj.update(id=id)
+  return obj
 
 
 @app.route("/api/v2/needs", methods=["GET"])
@@ -130,7 +133,8 @@ def get_needs():
     if(area != ""):
        query =  query.where("location.area", "==", area)
     needs = query.stream()
-    return jsonify([doc.to_dict() for doc in needs]), 200
+    #print(jsonify(response(needs)))
+    return jsonify([merge_id(doc.id, doc.to_dict()) for doc in needs]), 200
 
 @app.route("/api/v1/needs", methods=["GET"])
 # @requires_authorization
