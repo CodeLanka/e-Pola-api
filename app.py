@@ -5,6 +5,7 @@ from firebase_admin import auth, credentials, firestore, initialize_app
 import functools
 import requests
 
+
 app = Flask(__name__)
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 cred = credentials.Certificate("./serviceAccount.json")
@@ -14,6 +15,17 @@ db = firestore.client()
 needs_ref = db.collection("needs")
 product_ref = db.collection("products")
 
+def read_env():
+    env = {}
+    envfile = open('.env', 'r')
+    for line in envfile:
+        data = line.strip().split('=')
+        env[data[0]] = data[1]
+    envfile.close()
+    return env
+
+ENV = read_env()
+GOOGLE_API_KEY = ENV['GOOGLE_API_KEY']
 
 def authenticate():
     message = {"message": "Authenticate."}
@@ -137,6 +149,13 @@ def get_needs_by_location():
 @app.route("/ping", methods=["GET"])
 def ping():
     return "pong"
+
+@app.route("/api/v1/location", methods=["GET"])
+def getLocationFromString():
+    parameters = {'input': request.args.get('address'), 'inputtype': 'textquery', 'key': GOOGLE_API_KEY, 'fields': 'geometry'}
+    response = requests.get('https://maps.googleapis.com/maps/api/place/findplacefromtext/json', params=parameters)
+    if response.status_code == 200:
+        return jsonify(response.json()), 200
 
 
 port = int(os.environ.get("PORT", 5000))
