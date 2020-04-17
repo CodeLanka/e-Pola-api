@@ -122,6 +122,20 @@ def merge_id(id, obj):
   obj.update(id=id)
   return obj
 
+@app.route("/api/v2/needs/status", methods=["POST"])
+def put_needs():
+    needs = request.get_json()['needs']
+    to = "" if "to" not in request.args else request.args['to']
+    print(needs,to)
+    collection = db.collection("needs")
+    batch = db.batch()
+    for need in needs:
+       ref = collection.document(need)
+       batch.update(ref, {u'status': to})
+    query = batch.commit()
+    #print(query)
+    return "OK", 200
+
 
 @app.route("/api/v2/needs", methods=["GET"])
 def get_needs():
