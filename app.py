@@ -4,6 +4,7 @@ from flask_cors import CORS
 from firebase_admin import auth, credentials, firestore, initialize_app
 import functools
 import requests
+import json
 
 
 app = Flask(__name__)
@@ -129,6 +130,37 @@ def query_from_fb(columns, values):
 
     return result
 
+def merge_id(id, obj):
+  obj.update(id=id)
+  return obj
+
+@app.route("/api/v2/needs/status", methods=["POST"])
+def put_needs():
+    needs = request.get_json()['needs']
+    to = "" if "to" not in request.args else request.args['to']
+    print(needs,to)
+    collection = db.collection("needs")
+    batch = db.batch()
+    for need in needs:
+       ref = collection.document(need)
+       batch.update(ref, {u'status': to})
+    query = batch.commit()
+    #print(query)
+    return "OK", 200
+
+
+@app.route("/api/v2/needs", methods=["GET"])
+def get_needs():
+    products = [] if not request.args else request.args['products'].split(",")
+    area = "" if "area" not in request.args else request.args['area']
+    query = db.collection("needs")
+    if( len(products) > 0 ):
+        query =  query.where("products_id", "in", products)
+    if(area != ""):
+       query =  query.where("location.area", "==", area)
+    needs = query.stream()
+    #print(jsonify(response(needs)))
+    return jsonify([merge_id(doc.id, doc.to_dict()) for doc in needs]), 200
 
 @app.route("/api/v1/needs", methods=["GET"])
 # @requires_authorization
@@ -140,7 +172,7 @@ def get_needs_by_location():
         if any(values):
             return jsonify(query_from_fb(fb_doc_cols, values)), 200
         else:
-            all_needs = {doc.id: doc.to_dict() for doc in needs_ref.stream()}
+            all_needs = {merge_id(doc.id, doc.to_dict()) for doc in needs_ref.stream()}
             return jsonify(all_needs), 200
     except Exception as e:
         return f"An Error Occured: {e}"
